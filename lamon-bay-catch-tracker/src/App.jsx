@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from './components/Header';
 import CatchForm from './components/CatchForm';
 import CatchList from './components/CatchList';
@@ -7,78 +7,183 @@ import './App.css';
 const INITIAL_CATCHES = [
   {
     id: 101,
-    species: 'Bugaong (Convex-lined Therapon)',
-    weight: 0.45,
-    rigType: 'Double-Hook Tandem Rig',
+    species: 'Kitang (Spotted Scat)',
+    weight: 0.65,
+    lengthCm: 24,
+    rigType: 'Bottom Rig (Patid)',
     bait: 'Chopped Hipon',
     tide: 'High Tide (Taog)',
+    kept: true,
     time: '06:15 AM'
   },
   {
     id: 102,
-    species: 'Salay-salay (Yellowtail Scad)',
-    weight: 0.35,
-    rigType: 'Bottom Rig (Patid)',
+    species: 'Bugaong (Therapon)',
+    weight: 0.45,
+    lengthCm: 21,
+    rigType: 'Double-Hook Tandem Rig',
     bait: 'Chopped Hipon',
-    tide: 'Incoming Tide',
-    time: '07:05 AM'
+    tide: 'High Tide (Taog)',
+    kept: true,
+    time: '06:50 AM'
   },
   {
     id: 103,
-    species: 'Kitang (Spotted Scat)',
-    weight: 0.60,
-    rigType: 'Bottom Rig (Patid)',
-    bait: 'Chopped Hipon',
-    tide: 'High Tide (Taog)',
-    time: '07:40 AM'
+    species: 'Salay-salay (Yellowtail Scad)',
+    weight: 0.40,
+    lengthCm: 22,
+    rigType: 'Double-Hook Tandem Rig',
+    bait: 'Squid Strip',
+    tide: 'Incoming Tide',
+    kept: true,
+    time: '07:25 AM'
   },
   {
     id: 104,
     species: 'Asohos (Silver Sillago)',
     weight: 0.30,
+    lengthCm: 19,
     rigType: 'DIY Reflective Glow Lure',
-    bait: 'Fresh Alamang Paste',
+    bait: 'Hooked Lure + Hipon Tip',
     tide: 'Low Tide (Kati)',
-    time: '08:20 AM'
+    kept: true,
+    time: '08:10 AM'
+  },
+  {
+    id: 105,
+    species: 'Juvenile Bugaong',
+    weight: 0.15,
+    lengthCm: 12,
+    rigType: 'Bottom Rig (Patid)',
+    bait: 'Chopped Hipon',
+    tide: 'Low Tide (Kati)',
+    kept: false,
+    time: '08:40 AM'
   }
 ];
 
 function App() {
-  const [catches, setCatches] = useState(INITIAL_CATCHES);
-  const [filterText, setFilterText] = useState('');
+  const [catches, setCatches] = useState(() => {
+    const saved = localStorage.getItem('lamon_bay_catches_v2');
+    return saved ? JSON.parse(saved) : INITIAL_CATCHES;
+  });
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [tideFilter, setTideFilter] = useState('All');
+  const [sortBy, setSortBy] = useState('newest');
+  const [toast, setToast] = useState(null);
+
+  useEffect(() => {
+    localStorage.setItem('lamon_bay_catches_v2', JSON.stringify(catches));
+  }, [catches]);
+
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 2800);
+  };
 
   const handleAddCatch = (newCatch) => {
-    setCatches([newCatch, ...catches]);
+    setCatches((prev) => [newCatch, ...prev]);
+    showToast(`Logged ${newCatch.weight.toFixed(2)} kg ${newCatch.species}`);
   };
 
-  const handleDeleteCatch = (id) => {
-    setCatches(catches.filter((item) => item.id !== id));
+  const handleDeleteCatch = (id, speciesName) => {
+    setCatches((prev) => prev.filter((item) => item.id !== id));
+    showToast(`Removed ${speciesName} from log`, 'neutral');
   };
 
-  const filteredCatches = catches.filter(
-    (item) =>
-      item.species.toLowerCase().includes(filterText.toLowerCase()) ||
-      item.rigType.toLowerCase().includes(filterText.toLowerCase())
-  );
+  const handleToggleKept = (id) => {
+    setCatches((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, kept: !item.kept } : item
+      )
+    );
+  };
 
+  const handleResetDemo = () => {
+    setCatches(INITIAL_CATCHES);
+    showToast('Reset to default Lamon Bay demo logs', 'neutral');
+  };
+
+  // Calculate Analytics for Header
   const totalWeight = catches.reduce((sum, item) => sum + item.weight, 0);
-  const topSpecies = catches.length > 0 ? catches[0].species.split(' ')[0] : 'None';
+  const keptWeight = catches
+    .filter((item) => item.kept)
+    .reduce((sum, item) => sum + item.weight, 0);
+
+  const rigTotals = catches.reduce((acc, item) => {
+    if (!acc[item.rigType]) {
+      acc[item.rigType] = { count: 0, weight: 0 };
+    }
+    acc[item.rigType].count += 1;
+    acc[item.rigType].weight += item.weight;
+    return acc;
+  }, {});
+
+  const rigBreakdown = Object.entries(rigTotals)
+    .map(([name, stats]) => ({
+      name,
+      count: stats.count,
+      weight: stats.weight,
+      share: totalWeight > 0 ? Math.round((stats.weight / totalWeight) * 100) : 0
+    }))
+    .sort((a, b) => b.weight - a.weight);
+
+  const bestRig = rigBreakdown.length > 0 ? rigBreakdown[0] : null;
+
+  // Filter and Sort Catches for List
+  const processedCatches = catches
+    .filter((item) => {
+      const matchesSearch =
+        item.species.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.rigType.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.bait.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesTide = tideFilter === 'All' || item.tide === tideFilter;
+      return matchesSearch && matchesTide;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'heaviest') return b.weight - a.weight;
+      if (sortBy === 'length') return b.lengthCm - a.lengthCm;
+      return b.id - a.id;
+    });
 
   return (
-    <div className="app-container">
+    <div className="app-shell">
+      {toast && (
+        <div className={`toast-banner toast-${toast.type}`} role="status">
+          <span className="toast-dot" />
+          <span>{toast.message}</span>
+        </div>
+      )}
+
       <Header
         totalCatches={catches.length}
         totalWeight={totalWeight}
-        topSpecies={topSpecies}
+        keptWeight={keptWeight}
+        bestRig={bestRig}
+        rigBreakdown={rigBreakdown}
+        onResetDemo={handleResetDemo}
       />
-      <main className="main-content">
-        <CatchForm onAddCatch={handleAddCatch} />
-        <CatchList
-          catches={filteredCatches}
-          onDeleteCatch={handleDeleteCatch}
-          filterText={filterText}
-          onFilterChange={setFilterText}
-        />
+
+      <main className="workspace-grid">
+        <aside className="form-column">
+          <CatchForm onAddCatch={handleAddCatch} />
+        </aside>
+
+        <section className="log-column">
+          <CatchList
+            catches={processedCatches}
+            totalCount={catches.length}
+            onDeleteCatch={handleDeleteCatch}
+            onToggleKept={handleToggleKept}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            tideFilter={tideFilter}
+            onTideFilterChange={setTideFilter}
+            sortBy={sortBy}
+            onSortChange={setSortBy}
+          />
+        </section>
       </main>
     </div>
   );

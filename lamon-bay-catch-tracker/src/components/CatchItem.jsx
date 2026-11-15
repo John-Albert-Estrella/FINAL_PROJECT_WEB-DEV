@@ -1,27 +1,52 @@
 import React from 'react';
 
-function CatchItem({ catchData, onDelete }) {
+function CatchItem({ catchData, onDelete, onToggleKept }) {
   return (
-    <li className="catch-card">
-      <div className="catch-info">
-        <div className="catch-primary">
-          <span className="species-name">{catchData.species}</span>
-          <span className="weight-badge">{catchData.weight.toFixed(2)} kg</span>
+    <li className={`catch-row ${!catchData.kept ? 'catch-row-released' : ''}`}>
+      <div className="catch-row-main">
+        <div className="catch-row-top">
+          <span className="catch-species">{catchData.species}</span>
+          <span className="catch-time">{catchData.time}</span>
         </div>
-        <div className="catch-details">
-          <span><strong>Rig:</strong> {catchData.rigType}</span>
-          <span><strong>Bait:</strong> {catchData.bait}</span>
-          <span><strong>Tide:</strong> {catchData.tide}</span>
-          <span><strong>Time:</strong> {catchData.time}</span>
+
+        <div className="catch-specs">
+          <span className="spec-primary">{catchData.rigType}</span>
+          <span className="spec-dot">•</span>
+          <span>{catchData.bait}</span>
+          <span className="spec-dot">•</span>
+          <span>{catchData.tide}</span>
         </div>
       </div>
-      <button
-        className="btn-delete"
-        onClick={() => onDelete(catchData.id)}
-        title="Remove entry"
-      >
-        Remove
-      </button>
+
+      <div className="catch-row-right">
+        <div className="catch-measurements">
+          <strong className="catch-weight">
+            {catchData.weight.toFixed(2)} <small>kg</small>
+          </strong>
+          <span className="catch-length">{catchData.lengthCm} cm</span>
+        </div>
+
+        <div className="catch-actions">
+          <button
+            type="button"
+            className={`status-toggle ${catchData.kept ? 'status-kept' : 'status-released'}`}
+            onClick={() => onToggleKept(catchData.id)}
+            title="Click to toggle Kept vs Released"
+          >
+            {catchData.kept ? 'Kept' : 'Released'}
+          </button>
+
+          <button
+            type="button"
+            className="btn-icon-remove"
+            onClick={() => onDelete(catchData.id, catchData.species)}
+            aria-label={`Remove ${catchData.species}`}
+            title="Delete log entry"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
     </li>
   );
 }
